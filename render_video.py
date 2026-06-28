@@ -13,7 +13,7 @@ chat_id = os.environ.get('CHAT_ID')
 telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
 
 # 👇 Naye Creepy/Suspense Channel ka naam 👇
-channel_name = "Midnight Files" 
+channel_name = "Midnight Files®" 
 
 print(f"DEBUG: Processing {len(scenes_data)} scenes async...")
 
