@@ -12,12 +12,13 @@ pexels_key = os.environ.get('PEXELS_API_KEY')
 chat_id = os.environ.get('CHAT_ID')
 telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
 
-# 👇 Yahan apna channel name set karein 👇
-channel_name = "Midnight Files®" 
+# 👇 Naye Creepy/Suspense Channel ka naam 👇
+channel_name = "Midnight Files" 
 
 print(f"DEBUG: Processing {len(scenes_data)} scenes async...")
 
-FALLBACK_KEYWORDS = ["abstract motion background", "technology concept", "smartphone interface", "digital data animation", "smooth gradient"]
+# 👇 Naye channel ke liye dark, creepy, aur suspenseful fallback keywords 👇
+FALLBACK_KEYWORDS = ["dark forest", "foggy road", "rainy window", "night sky", "abandoned house", "creepy shadows"]
 
 TEMP_DIR = "/dev/shm" if os.path.exists("/dev/shm") else os.getcwd()
 
@@ -61,7 +62,7 @@ async def process_scene(session, i, scene):
         tts_success = False
         for attempt in range(3):
             try:
-                # 👇 UPDATE: Changed from Hindi to USA English Voice 👇
+                # 👇 USA English Voice for storytelling 👇
                 communicate = edge_tts.Communicate(text_line, "en-US-ChristopherNeural", rate="+10%")
                 await asyncio.wait_for(communicate.save(raw_mp3), timeout=15.0)
                 tts_success = True
@@ -191,6 +192,8 @@ async def main_pipeline():
         
         run_id = os.environ.get('GITHUB_RUN_ID', str(int(time.time())))
         tag_name = f"vid-{run_id}"
+        
+        # 👇 Naye GitHub Repo ka Link yahan update kar diya gaya hai 👇
         repo_name = "MidnightFiles2026/Midnight-Files-Long" 
         
         try:
