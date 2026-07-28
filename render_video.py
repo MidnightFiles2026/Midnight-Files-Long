@@ -1,4 +1,5 @@
 import os, sys, json, subprocess, time, random, asyncio, re, string
+import urllib.parse
 import aiohttp
 import edge_tts
 import shutil
@@ -17,8 +18,10 @@ channel_name = "Midnight Files®"
 
 print(f"DEBUG: Processing {len(scenes_data)} scenes async...")
 
-# 👇 Naye channel ke liye dark, creepy, aur suspenseful fallback keywords 👇
-FALLBACK_KEYWORDS = ["dark forest", "foggy road", "rainy window", "night sky", "abandoned house", "creepy shadows"]
+# --- SMART DYNAMIC FALLBACK KEYWORDS ---
+# GitHub Actions se jo bhi fallback theme aayegi, yeh usey list mein badal dega.
+fallback_env = os.environ.get('FALLBACK_KEYWORDS', 'dark forest, foggy road, rainy window, night sky, abandoned house, creepy shadows')
+FALLBACK_KEYWORDS = [kw.strip() for kw in fallback_env.split(',')]
 
 TEMP_DIR = "/dev/shm" if os.path.exists("/dev/shm") else os.getcwd()
 
@@ -28,10 +31,16 @@ async def fetch_pexels_video(session, keyword):
         for attempt in range(2):
             try:
                 await asyncio.sleep(random.uniform(0.1, 0.5))
-                random_page = random.randint(1, 5) 
-                url = f"https://api.pexels.com/videos/search?query={query}&per_page=5&page={random_page}&orientation=landscape&size=large"
+                # Jab attempts badhein toh safe page=1 rakho taaki khali result na aaye
+                random_page = random.randint(1, 5) if attempt == 0 else 1 
+                url = f"https://api.pexels.com/videos/search?query={urllib.parse.quote(query)}&per_page=5&page={random_page}&orientation=landscape&size=large"
                 
                 async with session.get(url, headers={"Authorization": pexels_key}, timeout=10) as response:
+                    # [IMPROVED]: Added Rate Limit (429) Handling
+                    if response.status == 429:
+                        await asyncio.sleep(2)
+                        continue
+                        
                     if response.status == 200:
                         res = await response.json()
                         if res.get('videos') and len(res['videos']) > 0:
@@ -81,20 +90,31 @@ async def process_scene(session, i, scene):
         dur = max(1.0, raw_dur - 0.2) 
         fade_out = max(0, dur - 0.5)
         
-        vid_url = await fetch_pexels_video(session, keyword)
+        # --- Visual Pipeline with Retries and 200KB Size Check ---
         is_valid_video = False
+        vid_url = await fetch_pexels_video(session, keyword)
         
-        if vid_url:
-            try:
-                async with session.get(vid_url, timeout=15) as resp:
-                    if resp.status == 200:
-                        vid_bytes = await resp.read()
-                        if len(vid_bytes) > 50000: 
-                            with open(vid_path, "wb") as f:
-                                f.write(vid_bytes)
-                            is_valid_video = True
-            except Exception as e:
-                print(f"Failed to download video for scene {i}: {str(e)}")
+        for download_attempt in range(3):
+            if not vid_url:
+                vid_url = await fetch_pexels_video(session, random.choice(FALLBACK_KEYWORDS))
+                
+            if vid_url:
+                try:
+                    async with session.get(vid_url, timeout=15) as resp:
+                        if resp.status == 200:
+                            vid_bytes = await resp.read()
+                            # [IMPROVED]: Increased size threshold to 200KB to strictly avoid corrupt/small files
+                            if len(vid_bytes) > 200000: 
+                                with open(vid_path, "wb") as f:
+                                    f.write(vid_bytes)
+                                is_valid_video = True
+                                break # Download successful, break loop
+                            else:
+                                print(f"Video file too small ({len(vid_bytes)} bytes) on attempt {download_attempt+1}, discarding.")
+                except Exception as e:
+                    print(f"Failed to download video for scene {i} on attempt {download_attempt+1}: {str(e)}")
+                    
+            vid_url = None # Reset for fallback fetch
 
         pop_path = os.path.abspath("pop.mp3")
         has_pop = os.path.exists(pop_path)
@@ -194,8 +214,8 @@ async def main_pipeline():
         run_id = os.environ.get('GITHUB_RUN_ID', str(int(time.time())))
         tag_name = f"vid-{run_id}"
         
-        # 👇 Naye GitHub Repo ka Link yahan update kar diya gaya hai 👇
-        repo_name = "MidnightFiles2026/Midnight-Files-Long" 
+        # 👇 Screenshot ke aadhar par repo name ko env fallback ke saath rakha gaya hai 👇
+        repo_name = os.environ.get('GITHUB_REPOSITORY', "MidnightFiles2026/Midnight-Files-Long") 
         
         try:
             cmd = ['gh', 'release', 'create', tag_name, final_video, '--repo', repo_name, '--notes', 'Automated Video Render']
