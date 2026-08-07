@@ -59,7 +59,8 @@ async def get_audio_duration(file_path):
         return 5.0 
 
 async def process_scene(session, i, scene):
-    keyword = scene.get('keyword', 'abstract')
+    # 👇 YAHAN FIX KIYA GAYA HAI: 'keyword' ki jagah 'visual_keyword' kar diya gaya hai 👇
+    keyword = scene.get('visual_keyword', 'abstract')
     text_line = scene.get('text', '').strip()
     if not text_line: return None
     
